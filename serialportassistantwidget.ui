@@ -2016,7 +2016,7 @@
         </widget>
        </item>
        <item row="1" column="1">
-        <widget class="QGroupBox" name="groupBox_sendMenu">
+        <widget class="QGroupBox" name="groupBox_transmitMenu">
          <property name="font">
           <font>
            <family>Microsoft YaHei UI</family>
@@ -2043,9 +2043,9 @@
            <number>8</number>
           </property>
           <item row="1" column="0">
-           <layout class="QHBoxLayout" name="horizontalLayout_send">
+           <layout class="QHBoxLayout" name="horizontalLayout_transmit">
             <item>
-             <widget class="QPushButton" name="btn_send">
+             <widget class="QPushButton" name="btn_transmit">
               <property name="minimumSize">
                <size>
                 <width>0</width>
@@ -2071,7 +2071,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="lineEdit_sendString">
+             <widget class="QLineEdit" name="lineEdit_transmitString">
               <property name="minimumSize">
                <size>
                 <width>0</width>
@@ -2210,6 +2210,9 @@
    </item>
    <item row="1" column="0">
     <widget class="QFrame" name="statusBar">
+     <property name="styleSheet">
+      <string notr="true">background-color: rgb(31, 32, 34);</string>
+     </property>
      <property name="frameShape">
       <enum>QFrame::Shape::StyledPanel</enum>
      </property>
@@ -2261,7 +2264,7 @@
            <enum>Qt::LayoutDirection::LeftToRight</enum>
           </property>
           <property name="text">
-           <string>发送成功！</string>
+           <string>状态</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
@@ -2280,7 +2283,7 @@
            <enum>Qt::LayoutDirection::LeftToRight</enum>
           </property>
           <property name="text">
-           <string>已接收: 0</string>
+           <string>已接收: 0 字节</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignmentFlag::AlignCenter</set>
@@ -2299,7 +2302,7 @@
            <enum>Qt::LayoutDirection::LeftToRight</enum>
           </property>
           <property name="text">
-           <string>已发送: 0</string>
+           <string>已发送: 0 字节</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignmentFlag::AlignCenter</set>
