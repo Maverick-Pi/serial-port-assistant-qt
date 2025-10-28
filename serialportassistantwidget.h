@@ -28,15 +28,22 @@ private:
     int transmittedBytesTotal; 	// 发送数据字节总数
     int receivedBytesTotal; 	// 接收数据字节总数
     QByteArray receiveBuffer; 	// 接收数据缓冲区
+    QTimer* transmissionTimer; 	// 发送定时器
+    QTimer* updateRealDateTimeTimer; 	// 实时时间更新定时器
 
     void configMap(); 	// 串口配置映射
     void updateSerialPortList(); 	// 更新串口列表
     void enabledSerialPortConfig(bool en); 	// 串口配置选项使能控制
+    void popupSerialPortDisconnect(); 	// 串口打开时，串口被拔出发出的提示
 
 private slots:
     void switchSerialPort(); 	// 开关串口
     void checkSerialPorts(); 	// 定时检测串口
     void transmitData(); 	// 发送数据
-    void readyReadSerialPort();
+    void readyReadSerialPort(); 	// 读取接收数据
+    void timedTrasmission(Qt::CheckState state); 	// 定时发送
+    void clearReceivedTextEdit(); 	// 清空接收区
+    void saveReceivedContent(); 	// 保存接收区内容
+    void displayHEX(Qt::CheckState state); 	// hex 显示
 };
 #endif // SERIALPORTASSISTANTWIDGET_H

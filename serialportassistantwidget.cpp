@@ -2,6 +2,7 @@
 #include "./ui_serialportassistantwidget.h"
 
 #include <QDateTime>
+#include <QFileDialog>
 #include <QMessageBox>
 #include <QSerialPortInfo>
 #include <QTimer>
@@ -24,14 +25,39 @@ SerialPortAssistantWidget::SerialPortAssistantWidget(QWidget *parent)
     // 初始化串口列表
     updateSerialPortList();
 
-    // 创建并启动定时器，每秒检测一次串口变化
+    // 定时发送定时框中只能输入数字
+    QIntValidator* validator = new QIntValidator(1, 999999, this); 	// 最小值为 1
+    ui->lineEdit_ms_times->setValidator(validator);
+
+    // 创建并启动定时器，每 500 毫秒检测一次串口变化
     serialPortCheckTimer = new QTimer(this);
     connect(serialPortCheckTimer, &QTimer::timeout, this, &SerialPortAssistantWidget::checkSerialPorts);
-    serialPortCheckTimer->start(1000);
+    serialPortCheckTimer->start(500);
+
+    // 创建并启动定时器，每秒更新一次时间显示
+    updateRealDateTimeTimer = new QTimer(this);
+    connect(updateRealDateTimeTimer, &QTimer::timeout, this, [this]() {
+        ui->label_statusBar_dateTime->setText(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    });
+    // 定时器启动前就获取一次时间
+    ui->label_statusBar_dateTime->setText(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    updateRealDateTimeTimer->start(1000);
+
+    // 创建发送定时器
+    transmissionTimer = new QTimer(this);
+    transmissionTimer->setTimerType(Qt::PreciseTimer);
+    connect(transmissionTimer, &QTimer::timeout, this, [this]() { transmitData(); });
 
     connect(ui->btn_switch, &QPushButton::clicked, this, &SerialPortAssistantWidget::switchSerialPort);
     connect(ui->btn_transmit, &QPushButton::clicked, this, &SerialPortAssistantWidget::transmitData);
     connect(serialPort, &QSerialPort::readyRead, this, &SerialPortAssistantWidget::readyReadSerialPort);
+    connect(ui->checkBox_timedSend, &QCheckBox::checkStateChanged,
+            this, &SerialPortAssistantWidget::timedTrasmission);
+    connect(ui->btn_clearReceive, &QPushButton::clicked,
+            this, &SerialPortAssistantWidget::clearReceivedTextEdit);
+    connect(ui->btn_saveReceive, &QPushButton::clicked, this, &SerialPortAssistantWidget::saveReceivedContent);
+    connect(ui->checkBox_HEX_display, &QCheckBox::checkStateChanged,
+            this, &SerialPortAssistantWidget::displayHEX);
 }
 
 SerialPortAssistantWidget::~SerialPortAssistantWidget()
@@ -39,6 +65,14 @@ SerialPortAssistantWidget::~SerialPortAssistantWidget()
     if (serialPortCheckTimer) {
         serialPortCheckTimer->stop();
         delete serialPortCheckTimer;
+    }
+    if (transmissionTimer) {
+        transmissionTimer->stop();
+        delete transmissionTimer;
+    }
+    if (updateRealDateTimeTimer) {
+        updateRealDateTimeTimer->stop();
+        delete updateRealDateTimeTimer;
     }
     delete ui;
     delete serialPort;
@@ -102,6 +136,20 @@ void SerialPortAssistantWidget::enabledSerialPortConfig(bool en)
 }
 
 /**
+ * @brief SerialPortAssistantWidget::popupSerialPortDisconnect
+ * 串口开启状态时，串口被拔出或故障时的弹窗提示
+ */
+void SerialPortAssistantWidget::popupSerialPortDisconnect()
+{
+    QMessageBox msgBox(this);
+    msgBox.setIcon(QMessageBox::Warning);
+    msgBox.setWindowTitle(tr("错误"));
+    msgBox.setText(tr("串口失效！\n请检查指定串口是否存在或完好无损"));
+    msgBox.addButton(tr("确定"), QMessageBox::AcceptRole);
+    msgBox.exec();
+}
+
+/**
  * 槽函数的定义
  */
 
@@ -113,6 +161,7 @@ void SerialPortAssistantWidget::switchSerialPort()
 {
     if (serialPort->isOpen()) {
         serialPort->close();
+        ui->checkBox_timedSend->setCheckState(Qt::Unchecked); 	// 关闭定时发送
         ui->btn_switch->setText(tr("打开串口"));
         enabledSerialPortConfig(true);
         return;
@@ -178,6 +227,12 @@ void SerialPortAssistantWidget::checkSerialPorts()
         if (currentPortList.isEmpty()) {
             ui->btn_switch->setDisabled(true);
             ui->comboBox_serialPort->addItem(tr("无可用串口"));
+            if (serialPort->isOpen()) { 	// 如果串口是开启的，则调用开关串口函数并弹窗提示
+                // 关闭自动发送
+                ui->checkBox_timedSend->setCheckState(Qt::Unchecked);
+                switchSerialPort();
+                popupSerialPortDisconnect();
+            }
         }
         // 如果之前选中的串口仍然存在，则重新选中它
         else if (currentPortList.contains(currentSelectedPort)) {
@@ -185,11 +240,16 @@ void SerialPortAssistantWidget::checkSerialPorts()
             ui->btn_switch->setDisabled(false);
         } else {
             ui->btn_switch->setDisabled(false);
+            if (serialPort->isOpen()) { 	// 如果串口是开启的，则调用开关串口函数并弹窗提示
+                // 关闭自动发送
+                ui->checkBox_timedSend->setCheckState(Qt::Unchecked);
+                switchSerialPort();
+                popupSerialPortDisconnect();
+            }
         }
 
         // 更新记录的上次串口列表
         previousPortList = currentPortList;
-        qDebug() << "当前可用串口：" << currentPortList;
     }
 }
 
@@ -263,5 +323,71 @@ void SerialPortAssistantWidget::readyReadSerialPort()
         int receivedLineBytes = frameData.size();
         receivedBytesTotal += receivedLineBytes;
         ui->label_statusBar_received->setText(tr("已接收: %1 字节").arg(receivedBytesTotal));
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::timedTrasmission
+ * 定时发送数据
+ */
+void SerialPortAssistantWidget::timedTrasmission(Qt::CheckState state)
+{
+    if (state == Qt::Checked) {
+        if (!serialPort->isOpen()) { 	// 如果串口没有打开则打开串口
+            switchSerialPort();
+        }
+        ui->lineEdit_ms_times->setEnabled(false); 	// 定时框禁止修改
+        ui->lineEdit_transmitString->setEnabled(false); 	// 发送信息输入框禁止修改
+        ui->btn_transmit->setEnabled(false); 	// 发送按钮禁止使用
+        // 开启定时器
+        transmissionTimer->start(ui->lineEdit_ms_times->text().toInt());
+        transmitData(); 	// 开启定时器后立刻执行一次发送
+    } else if (state == Qt::Unchecked) {
+        ui->lineEdit_ms_times->setEnabled(true); 	// 定时框可以修改
+        ui->lineEdit_transmitString->setEnabled(true); 	// 发送信息输入框可以修改
+        ui->btn_transmit->setEnabled(true); 	// 发送按钮可以使用
+        // 关闭定时器
+        transmissionTimer->stop();
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::clearReceivedTextEdit
+ * 清空接收区
+ */
+void SerialPortAssistantWidget::clearReceivedTextEdit()
+{
+    ui->textEditReceive->clear(); 	// 清空接收区
+}
+
+/**
+ * @brief SerialPortAssistantWidget::saveReceivedContent
+ * 保存接收区内容到文件
+ */
+void SerialPortAssistantWidget::saveReceivedContent()
+{
+    QString fileName = QFileDialog::getSaveFileName(this, tr("保存接收数据"), "./", tr("文本 (*.txt *.md)"));
+
+    if (!fileName.isNull() && !fileName.isEmpty()) {
+        QFile file(fileName);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            qFatal() << "文件打开失败";
+            return;
+        }
+        QTextStream out(&file);
+        out << ui->textEditReceive->toPlainText();
+        file.close();
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::displayHEX
+ * 在接收区和发送区以十六进制显示
+ * @param state 复选框状态
+ */
+void SerialPortAssistantWidget::displayHEX(Qt::CheckState state)
+{
+    if (state == Qt::Checked) {
+        // TODO: 将文本框中内容悉数转为 HEX 显示
     }
 }

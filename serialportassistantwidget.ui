@@ -1001,7 +1001,7 @@
             <item>
              <widget class="QSpinBox" name="spinBox_interval_ms">
               <property name="enabled">
-               <bool>false</bool>
+               <bool>true</bool>
               </property>
               <property name="minimumSize">
                <size>
@@ -1857,116 +1857,27 @@
           <property name="spacing">
            <number>8</number>
           </property>
+          <item row="0" column="0" rowspan="2">
+           <widget class="QPushButton" name="btn_switch">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>70</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <family>Microsoft YaHei UI</family>
+              <pointsize>10</pointsize>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>打开串口</string>
+            </property>
+           </widget>
+          </item>
           <item row="0" column="3">
-           <widget class="QCheckBox" name="checkBox_HEX_display">
-            <property name="minimumSize">
-             <size>
-              <width>88</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>88</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>HEX 显示</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="2">
-           <widget class="QCheckBox" name="checkBox_receiveTime">
-            <property name="minimumSize">
-             <size>
-              <width>88</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>88</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>接收时间</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="5">
-           <widget class="QPushButton" name="btn_hiddenHistory">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>隐藏历史</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="3">
-           <widget class="QCheckBox" name="checkBox_lineWrap">
-            <property name="minimumSize">
-             <size>
-              <width>88</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>88</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>自动换行</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="5">
-           <widget class="QPushButton" name="btn_hiddenPanel">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>隐藏面板</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="4">
-           <widget class="QPushButton" name="btn_downloadMode">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>下载模式</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QPushButton" name="btn_clearReceive">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>30</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>清空接收</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="4">
            <widget class="QPushButton" name="btn_runMode">
             <property name="minimumSize">
              <size>
@@ -1992,23 +1903,93 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="0" rowspan="2">
-           <widget class="QPushButton" name="btn_switch">
+          <item row="0" column="1">
+           <widget class="QPushButton" name="btn_clearReceive">
             <property name="minimumSize">
              <size>
               <width>0</width>
-              <height>70</height>
+              <height>30</height>
              </size>
             </property>
-            <property name="font">
-             <font>
-              <family>Microsoft YaHei UI</family>
-              <pointsize>10</pointsize>
-              <bold>true</bold>
-             </font>
+            <property name="text">
+             <string>清空接收</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QCheckBox" name="checkBox_lineWrap">
+            <property name="minimumSize">
+             <size>
+              <width>88</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>88</width>
+              <height>16777215</height>
+             </size>
             </property>
             <property name="text">
-             <string>打开串口</string>
+             <string>自动换行</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QCheckBox" name="checkBox_HEX_display">
+            <property name="minimumSize">
+             <size>
+              <width>88</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>88</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>HEX 显示</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="4">
+           <widget class="QPushButton" name="btn_hiddenPanel">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>隐藏面板</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QPushButton" name="btn_downloadMode">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>下载模式</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="4">
+           <widget class="QPushButton" name="btn_hiddenHistory">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>隐藏历史</string>
             </property>
            </widget>
           </item>
@@ -2106,7 +2087,7 @@
             <item>
              <widget class="QLineEdit" name="lineEdit_ms_times">
               <property name="enabled">
-               <bool>false</bool>
+               <bool>true</bool>
               </property>
               <property name="minimumSize">
                <size>
