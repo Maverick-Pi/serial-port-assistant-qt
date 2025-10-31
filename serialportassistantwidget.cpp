@@ -1,10 +1,12 @@
 #include "serialportassistantwidget.h"
 #include "./ui_serialportassistantwidget.h"
+#include "appcolors.h"
 
 #include <QDateTime>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QSerialPortInfo>
+#include <QTextBlock>
 #include <QTimer>
 
 SerialPortAssistantWidget::SerialPortAssistantWidget(QWidget *parent)
@@ -150,6 +152,76 @@ void SerialPortAssistantWidget::popupSerialPortDisconnect()
 }
 
 /**
+ * @brief SerialPortAssistantWidget::convertTextEditHex
+ * 根据指定的时间戳格式，将 QTextEdit 中的每条记录在 HEX 和原始文本显示之间互相转换。
+ *
+ * 该函数会逐行（以 QTextBlock 为单位）解析文本框内容：
+ * - 当 toHex 为 true 时，将每条记录中的数据部分转换为十六进制字符串显示；
+ * - 当 toHex 为 false 时，将十六进制字符串还原为原始文本。
+ *
+ * 转换时保留时间戳（例如 [hh:mm:ss.zzz]），
+ * 并根据不同的文本框（接收区或发送记录区）使用对应的显示颜色。
+ * 每条记录在最终 HTML 中以 <div> 块形式显示，确保换行与段落结构正确。
+ *
+ * @param textEdit          要转换的 QTextEdit 控件（如接收区或记录区）
+ * @param timestampPattern  用于匹配时间戳的正则表达式（如 "\\[\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\]\\s"）
+ * @param toHex             若为 true，将文本转换为 HEX 显示；若为 false，从 HEX 转回原文
+ */
+void SerialPortAssistantWidget::convertTextEditHex(QTextEdit* textEdit,
+                                                   const QString& timestampPattern,
+                                                   bool toHex)
+{
+    QTextDocument* doc = textEdit->document();
+    QRegularExpression regex(timestampPattern);
+
+    QString newHtml;
+    // 遍历每个文档 block（每个 append() 对应一个 block）
+    for (QTextBlock block = doc->begin(); block != doc->end(); block = block.next()) {
+        QString blockText = block.text();
+        if (blockText.trimmed().isEmpty()) continue;
+
+        QRegularExpressionMatch match = regex.match(blockText);
+        if (match.hasMatch()) {
+            int timestampEnd = match.capturedEnd();
+            QString timestamp = blockText.left(timestampEnd);
+            QString data = blockText.mid(timestampEnd);
+
+            QString convertedData;
+            if (toHex) {
+                // 转为 HEX：先 trim 左右空白，再转为 bytes，然后 toHex（中间以空格分隔）
+                QByteArray dataBytes = data.trimmed().toUtf8();
+                convertedData = QString::fromUtf8(dataBytes.toHex(' ').toUpper());
+            } else {
+                // 从 HEX 转回：移除所有非 0-9A-Fa-f，然后 fromHex
+                QString hexString = data;
+                static const QRegularExpression nonHexPattern("[^0-9A-Fa-f]");
+                hexString.remove(nonHexPattern);
+                QByteArray dataBytes = QByteArray::fromHex(hexString.toLatin1());
+                convertedData = QString::fromUtf8(dataBytes);
+                // 如果原来是可见文本行，保持一条记录的末尾没有额外空格或换行（HTML 用 div 分隔）
+            }
+
+            // 根据不同区域使用不同颜色
+            QString color = (textEdit == ui->textEditReceive) ? AppColors::ReceivedTime.name()
+                                                              : AppColors::RecordTime.name();
+
+            // 用 div 保证每条记录是独立的块，避免合并到同一行
+            // 注意对 timestamp 做 HTML 转义以防止特殊字符破坏 HTML
+            QString escapedTimestamp = timestamp.toHtmlEscaped();
+            QString escapedData = convertedData.toHtmlEscaped();
+
+            newHtml += QString("<div><span style=\"color:%1;\">%2</span>%3</div>")
+                           .arg(color, escapedTimestamp, escapedData);
+        } else {
+            // 如果没匹配到时间戳就直接转义并作为独立段落插入
+            newHtml += QString("<div>%1</div>").arg(blockText.toHtmlEscaped());
+        }
+    }
+
+    textEdit->setHtml(newHtml);
+}
+
+/**
  * 槽函数的定义
  */
 
@@ -255,7 +327,7 @@ void SerialPortAssistantWidget::checkSerialPorts()
 
 /**
  * @brief SerialPortAssistantWidget::transmitData
- * 发送数据
+ * 发送数据, 根据 “HEX显示” 复选框状态实时决定显示为 HEX 还是原文
  */
 void SerialPortAssistantWidget::transmitData()
 {
@@ -275,11 +347,22 @@ void SerialPortAssistantWidget::transmitData()
             // 获取当前时间并格式化
             QDateTime currentTime = QDateTime::currentDateTime();
             QString timestamp = currentTime.toString("[hh:mm:ss.zzz]");
-            // 创建带格式的文本
-            QString formattedText = QString("<span style=\"color:#98FB98;\">%1 &lt;- </span>%2")
-                                        .arg(timestamp, sendData.left(transmitBytes - 1));
-            // 使用 HEML 格式插入历史记录文本
+
+            QString displayData;
+            if (ui->checkBox_HEX_display->isChecked()) { // 判断当前是否处于 HEX 显示模式
+                // 转为 HEX 格式并以空格分隔
+                QByteArray hexBytes = sendData.left(transmitBytes - 1).toHex(' ').toUpper();
+                displayData = QString::fromUtf8(hexBytes);
+            } else {
+                // 以原始文本显示 (去掉结束符)
+                displayData = QString::fromUtf8(sendData.left(transmitBytes - 1));
+            }
+            // 格式化带颜色的显示文本
+            QString formattedText = QString("<span style=\"color:%1;\">%2 </span>%3")
+                                        .arg(AppColors::RecordTime.name(), timestamp, displayData);
+            // 在记录区中追加显示
             ui->textEditRecord->append(formattedText);
+
             // 计算发送数据的字节数
             transmittedBytesTotal += transmitBytes - 1;
             // 渲染发送结果状态
@@ -295,7 +378,7 @@ void SerialPortAssistantWidget::transmitData()
 
 /**
  * @brief SerialPortAssistantWidget::readyReadSerialPort
- * 接收数据并加入缓冲区中
+ * 接收数据，根据 “HEX显示” 复选框状态实时决定显示为 HEX 还是原文
  */
 void SerialPortAssistantWidget::readyReadSerialPort()
 {
@@ -315,11 +398,23 @@ void SerialPortAssistantWidget::readyReadSerialPort()
         // 获取当前时间并格式化
         QDateTime currentTime = QDateTime::currentDateTime();
         QString timestamp = currentTime.toString("[hh:mm:ss.zzz]");
-        // 创建带格式的文本
-        QString formattedText = QString("<span style=\"color:#87CEEB;\">%1 -&gt; </span>%2")
-                                    .arg(timestamp, QString::fromUtf8(frameData));
-        // 使用 HTML 格式插入文本
+
+        QString displayData;
+        // 判断当前是否处于 HEX 显示模式
+        if (ui->checkBox_HEX_display->isChecked()) {
+            // 转为 HEX 格式显示
+            QByteArray hexBytes = frameData.toHex(' ').toUpper();
+            displayData = QString::fromUtf8(hexBytes);
+        } else {
+            // 按原始文本显示
+            displayData = QString::fromUtf8(frameData);
+        }
+        // 拼接格式化文本
+        QString formattedText = QString("<span style=\"color:%1;\">%2 </span>%3")
+                                    .arg(AppColors::ReceivedTime.name(), timestamp, displayData);
+        // 显示到接收区
         ui->textEditReceive->append(formattedText);
+
         int receivedLineBytes = frameData.size();
         receivedBytesTotal += receivedLineBytes;
         ui->label_statusBar_received->setText(tr("已接收: %1 字节").arg(receivedBytesTotal));
@@ -388,6 +483,21 @@ void SerialPortAssistantWidget::saveReceivedContent()
 void SerialPortAssistantWidget::displayHEX(Qt::CheckState state)
 {
     if (state == Qt::Checked) {
-        // TODO: 将文本框中内容悉数转为 HEX 显示
+        // 接收区模式：匹配时间戳格式 [hh:mm:ss.zzz]
+        QString receivePattern = R"(\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s)";
+        // 记录区模式：匹配时间戳格式 [hh:mm:ss.zzz]
+        QString recordPattern = R"(\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s)";
+
+        convertTextEditHex(ui->textEditReceive, receivePattern, true);
+        convertTextEditHex(ui->textEditRecord, recordPattern, true);
+
+    } else if (state == Qt::Unchecked) {
+        // 接收区模式：匹配时间戳格式 [hh:mm:ss.zzz]
+        QString receivePattern = R"(\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s)";
+        // 记录区模式：匹配时间戳格式 [hh:mm:ss.zzz]
+        QString recordPattern = R"(\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s)";
+
+        convertTextEditHex(ui->textEditReceive, receivePattern, false);
+        convertTextEditHex(ui->textEditRecord, recordPattern, false);
     }
 }

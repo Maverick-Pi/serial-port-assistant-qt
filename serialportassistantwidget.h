@@ -2,6 +2,7 @@
 #define SERIALPORTASSISTANTWIDGET_H
 
 #include <QSerialPort>
+#include <QTextEdit>
 #include <QWidget>
 
 QT_BEGIN_NAMESPACE
@@ -9,6 +10,8 @@ namespace Ui {
 class SerialPortAssistantWidget;
 }
 QT_END_NAMESPACE
+
+#define SERIALPORT_RECEIVE_COLOR #
 
 class SerialPortAssistantWidget : public QWidget
 {
@@ -35,6 +38,7 @@ private:
     void updateSerialPortList(); 	// 更新串口列表
     void enabledSerialPortConfig(bool en); 	// 串口配置选项使能控制
     void popupSerialPortDisconnect(); 	// 串口打开时，串口被拔出发出的提示
+    void convertTextEditHex(QTextEdit* textEdit, const QString& timestampPattern, bool toHex);
 
 private slots:
     void switchSerialPort(); 	// 开关串口
