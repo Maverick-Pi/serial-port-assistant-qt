@@ -57,9 +57,16 @@ SerialPortAssistantWidget::SerialPortAssistantWidget(QWidget *parent)
             this, &SerialPortAssistantWidget::timedTrasmission);
     connect(ui->btn_clearReceive, &QPushButton::clicked,
             this, &SerialPortAssistantWidget::clearReceivedTextEdit);
+    connect(ui->btn_clearRecord, &QPushButton::clicked, this, &SerialPortAssistantWidget::clearRecordedTextEdit);
     connect(ui->btn_saveReceive, &QPushButton::clicked, this, &SerialPortAssistantWidget::saveReceivedContent);
     connect(ui->checkBox_HEX_display, &QCheckBox::checkStateChanged,
             this, &SerialPortAssistantWidget::displayHEX);
+    connect(ui->checkBox_HEXSend, &QCheckBox::checkStateChanged,
+            this, &SerialPortAssistantWidget::transimitHex);
+    connect(ui->lineEdit_transmitString, &QLineEdit::textChanged,
+            this, &SerialPortAssistantWidget::sendLineEditChanged);
+    connect(ui->btn_hiddenHistory, &QPushButton::clicked, this, &SerialPortAssistantWidget::hiddenHistory);
+    connect(ui->btn_hiddenPanel, &QPushButton::clicked, this, &SerialPortAssistantWidget::hiddenPanel);
 }
 
 SerialPortAssistantWidget::~SerialPortAssistantWidget()
@@ -329,51 +336,84 @@ void SerialPortAssistantWidget::checkSerialPorts()
  * @brief SerialPortAssistantWidget::transmitData
  * 发送数据, 根据 “HEX显示” 复选框状态实时决定显示为 HEX 还是原文
  */
+
 void SerialPortAssistantWidget::transmitData()
 {
-    if (!serialPort->isOpen()) { // 检测串口是否打开，若没有打开则打开
+    if (!serialPort->isOpen()) {
         switchSerialPort();
     }
+
     QString text = ui->lineEdit_transmitString->text();
-    if (!text.isEmpty()) {
-        QByteArray sendData = text.toUtf8();
-        sendData.append(char(0x03)); // 添加结束符 ETX
-        qint64 transmitBytes = serialPort->write(sendData);
-
-        if (transmitBytes == -1) {
-            ui->label_statusBar_sendStatus->setStyleSheet("color: red; font-weight: bold;");
-            ui->label_statusBar_sendStatus->setText(tr("发送失败！"));
-        } else {
-            // 获取当前时间并格式化
-            QDateTime currentTime = QDateTime::currentDateTime();
-            QString timestamp = currentTime.toString("[hh:mm:ss.zzz]");
-
-            QString displayData;
-            if (ui->checkBox_HEX_display->isChecked()) { // 判断当前是否处于 HEX 显示模式
-                // 转为 HEX 格式并以空格分隔
-                QByteArray hexBytes = sendData.left(transmitBytes - 1).toHex(' ').toUpper();
-                displayData = QString::fromUtf8(hexBytes);
-            } else {
-                // 以原始文本显示 (去掉结束符)
-                displayData = QString::fromUtf8(sendData.left(transmitBytes - 1));
-            }
-            // 格式化带颜色的显示文本
-            QString formattedText = QString("<span style=\"color:%1;\">%2 </span>%3")
-                                        .arg(AppColors::RecordTime.name(), timestamp, displayData);
-            // 在记录区中追加显示
-            ui->textEditRecord->append(formattedText);
-
-            // 计算发送数据的字节数
-            transmittedBytesTotal += transmitBytes - 1;
-            // 渲染发送结果状态
-            ui->label_statusBar_sendStatus->setStyleSheet("color: #00FF7F; font-weight: bold;");
-            ui->label_statusBar_sendStatus->setText(tr("发送成功！"));
-            ui->label_statusBar_sent->setText(tr("已发送: %1 字节").arg(transmittedBytesTotal));
-        }
-    } else {
+    if (text.isEmpty()) {
         ui->label_statusBar_sendStatus->setStyleSheet("color: orange; font-weight: bold;");
         ui->label_statusBar_sendStatus->setText(tr("没有可发送的数据！"));
+        return;
     }
+
+    QByteArray sendData;
+    bool hexSendMode = ui->checkBox_HEXSend->isChecked();     // ✅ 新增：勾选则按HEX发送
+
+    if (hexSendMode) {
+        // 去除空格等非HEX字符，仅保留 0-9 A-F a-f
+        QString hexString = text;
+        static const QRegularExpression hexRegex("[^0-9A-Fa-f]");
+        hexString.remove(hexRegex);
+
+        // 如果字符个数为奇数，说明格式不完整，提示用户
+        if (hexString.length() % 2 != 0) {
+            ui->label_statusBar_sendStatus->setStyleSheet("color: red; font-weight: bold;");
+            ui->label_statusBar_sendStatus->setText(tr("HEX格式错误：长度必须为偶数"));
+            return;
+        }
+
+        sendData = QByteArray::fromHex(hexString.toLatin1());
+    } else {
+        // 原始字符串发送
+        sendData = text.toUtf8();
+    }
+
+    // 如果 “发送新行” 复选框勾选, 则需要在发送文本末尾添加换行符
+    if (ui->checkBox_sendNewLine->checkState() == Qt::Checked) {
+        sendData.append("\r\n");
+    }
+
+    // 添加结束符 ETX (0x03)
+    sendData.append(char(0x03));
+
+    qint64 transmitBytes = serialPort->write(sendData);
+    if (transmitBytes == -1) {
+        ui->label_statusBar_sendStatus->setStyleSheet("color: red; font-weight: bold;");
+        ui->label_statusBar_sendStatus->setText(tr("发送失败！"));
+        return;
+    }
+
+    // 获取时间戳
+    QString timestamp = QDateTime::currentDateTime().toString("[hh:mm:ss.zzz]");
+
+    // ✅ 决定 record 区显示的格式（实时对应 HEX 显示复选框）
+    bool hexDisplay = ui->checkBox_HEX_display->isChecked();
+    QString displayData;
+
+    if (hexDisplay) {
+        QByteArray hex = sendData.left(transmitBytes - 1).toHex(' ').toUpper();
+        displayData = QString::fromUtf8(hex);
+    } else {
+        if (hexSendMode) {
+            // 即使以HEX发送，也允许显示为原始（可能为不可见字符）
+            displayData = QString::fromUtf8(sendData.left(transmitBytes - 1));
+        } else {
+            displayData = QString::fromUtf8(sendData.left(transmitBytes - 1));
+        }
+    }
+
+    QString formattedText = QString("<span style=\"color:%1;\">%2 </span>%3")
+                                .arg(AppColors::RecordTime.name(), timestamp, displayData);
+    ui->textEditRecord->append(formattedText);
+
+    transmittedBytesTotal += transmitBytes - 1;
+    ui->label_statusBar_sendStatus->setStyleSheet("color: #00FF7F; font-weight: bold;");
+    ui->label_statusBar_sendStatus->setText(tr("发送成功！"));
+    ui->label_statusBar_sent->setText(tr("已发送: %1 字节").arg(transmittedBytesTotal));
 }
 
 /**
@@ -456,6 +496,15 @@ void SerialPortAssistantWidget::clearReceivedTextEdit()
 }
 
 /**
+ * @brief SerialPortAssistantWidget::clearRecordedTextEdit
+ * 清空历史记录区
+ */
+void SerialPortAssistantWidget::clearRecordedTextEdit()
+{
+    ui->textEditRecord->clear();
+}
+
+/**
  * @brief SerialPortAssistantWidget::saveReceivedContent
  * 保存接收区内容到文件
  */
@@ -499,5 +548,94 @@ void SerialPortAssistantWidget::displayHEX(Qt::CheckState state)
 
         convertTextEditHex(ui->textEditReceive, receivePattern, false);
         convertTextEditHex(ui->textEditRecord, recordPattern, false);
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::transimitHex
+ * HEX发送复选框状态变化槽函数
+ * @param state HEX发送复选框状态
+ */
+void SerialPortAssistantWidget::transimitHex(Qt::CheckState state)
+{
+    if (state == Qt::Checked) {
+        ui->lineEdit_transmitString->setPlaceholderText(tr("请输入HEX，如: 31 32 33 或 313233"));
+    } else {
+        ui->lineEdit_transmitString->setPlaceholderText(tr("请输入文本数据"));
+        ui->lineEdit_transmitString->setStyleSheet(""); // 清除红色警告边框
+    }
+}
+
+/**
+ * @brief 自动格式化 lineEdit_transmitString 输入内容（在 HEX 发送模式下）
+ *        1. 过滤非法字符（只保留 0-9 A-F a-f）
+ *        2. 每 2 个字符插入空格
+ */
+void SerialPortAssistantWidget::sendLineEditChanged(const QString &text)
+{
+    if (!ui->checkBox_HEXSend->isChecked())
+        return; // 普通文本模式下不处理
+
+    QString clean = text;
+    // 只保留 0-9 A-F a-f
+    static const QRegularExpression hexRegex("[^0-9A-Fa-f]");
+    clean.remove(hexRegex);
+
+    // 自动每两个字符插入空格
+    QString formatted;
+    for (int i = 0; i < clean.length(); i += 2) {
+        if (i + 2 <= clean.length())
+            formatted += clean.mid(i, 2) + " ";
+        else
+            formatted += clean.mid(i);
+    }
+    formatted = formatted.trimmed();
+
+    // 防止光标跳动：只有 text 不同时才回填
+    if (formatted != text) {
+        ui->lineEdit_transmitString->blockSignals(true);
+        ui->lineEdit_transmitString->setText(formatted);
+        ui->lineEdit_transmitString->blockSignals(false);
+    }
+
+    // 检查 HEX 长度是否为偶数
+    if (clean.length() % 2 != 0) {
+        ui->lineEdit_transmitString->setStyleSheet("border: 2px solid red;");
+        ui->label_statusBar_sendStatus->setText("HEX格式错误：必须为偶数位");
+    } else {
+        ui->lineEdit_transmitString->setStyleSheet("");
+        ui->label_statusBar_sendStatus->setText("");
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::hiddenHistory
+ * 隐藏或显示历史记录区域
+ * @param checked 若为 true，则隐藏历史记录区域；若为 false 则显示历史记录区域
+ */
+void SerialPortAssistantWidget::hiddenHistory(bool checked)
+{
+    if (checked) {
+        ui->groupBoxRecord->hide();
+        ui->btn_hiddenHistory->setText(tr("显示历史"));
+    } else {
+        ui->groupBoxRecord->show();
+        ui->btn_hiddenHistory->setText(tr("隐藏历史"));
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::hiddenPanel
+ * 隐藏或显示面板区域
+ * @param checked 若为 true，则隐藏面板；若为 false，则显示面板
+ */
+void SerialPortAssistantWidget::hiddenPanel(bool checked)
+{
+    if (checked) {
+        ui->groupBoxMultiText->hide();
+        ui->btn_hiddenPanel->setText(tr("显示面板"));
+    } else {
+        ui->groupBoxMultiText->show();
+        ui->btn_hiddenPanel->setText(tr("隐藏面板"));
     }
 }

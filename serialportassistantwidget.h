@@ -47,7 +47,12 @@ private slots:
     void readyReadSerialPort(); 	// 读取接收数据
     void timedTrasmission(Qt::CheckState state); 	// 定时发送
     void clearReceivedTextEdit(); 	// 清空接收区
+    void clearRecordedTextEdit(); 	// 清空历史记录区
     void saveReceivedContent(); 	// 保存接收区内容
     void displayHEX(Qt::CheckState state); 	// hex 显示
+    void transimitHex(Qt::CheckState state); 	// HEX 发送模式
+    void sendLineEditChanged(const QString &text); // 对输入框进行实时监控（仅在 hexSend 模式下启用）
+    void hiddenHistory(bool checked); 	// 隐藏历史记录
+    void hiddenPanel(bool checked); 	// 隐藏面板
 };
 #endif // SERIALPORTASSISTANTWIDGET_H
