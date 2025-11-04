@@ -78,7 +78,18 @@ SerialPortAssistantWidget::SerialPortAssistantWidget(QWidget *parent)
         connect(cbHex, &QCheckBox::checkStateChanged, this, [=](Qt::CheckState state) {
             transmitHex(state, le);
         });
+
+        // 勾选框或内容变化时更新队列
+        connect(cb, &QCheckBox::checkStateChanged, this, &SerialPortAssistantWidget::updateSendQueue);
+        connect(le, &QLineEdit::textChanged, this, &SerialPortAssistantWidget::updateSendQueue);
     }
+    // 多文本区循环发送信号与槽的绑定
+    connect(ui->checkBox_cyclicSend, &QCheckBox::checkStateChanged, this,
+            &SerialPortAssistantWidget::transmitCyclically);
+    // 多文本循环发送定时器
+    multiTextTimer = new QTimer(this);
+    multiTextTimer->setTimerType(Qt::PreciseTimer);
+    connect(multiTextTimer, &QTimer::timeout, this, &SerialPortAssistantWidget::timeoutMultiTextTimer);
 
     // 创建发送定时器
     transmissionTimer = new QTimer(this);
@@ -125,6 +136,10 @@ SerialPortAssistantWidget::~SerialPortAssistantWidget()
     if (updateRealDateTimeTimer) {
         updateRealDateTimeTimer->stop();
         delete updateRealDateTimeTimer;
+    }
+    if (multiTextTimer) {
+        multiTextTimer->stop();
+        delete multiTextTimer;
     }
     delete ui;
     delete serialPort;
@@ -746,10 +761,14 @@ void SerialPortAssistantWidget::changeMultiTextCheckBoxAll(Qt::CheckState state)
     // 防止递归调用
     bool blocked = ui->checkBox_all->blockSignals(true);
 
-    // 如果部分选中，则不去改变子项状态
     if (!(state == Qt::PartiallyChecked)) {
         for (auto cb : std::as_const(multiTextCheckBoxes)) {
             cb->setCheckState(state);
+        }
+    } else { // 如果部分选中，则立刻转为全选中
+        ui->checkBox_all->setCheckState(Qt::Checked);
+        for (auto cb : std::as_const(multiTextCheckBoxes)) {
+            cb->setCheckState(Qt::Checked);
         }
     }
 
@@ -791,4 +810,106 @@ void SerialPortAssistantWidget::updateCheckBoxAllState()
     }
 
     ui->checkBox_all->blockSignals(blocked);
+}
+
+/**
+ * @brief SerialPortAssistantWidget::transmitCyclically
+ * 是否开启循环发送
+ * @param state 循环发送复选框状态
+ */
+void SerialPortAssistantWidget::transmitCyclically(Qt::CheckState state)
+{
+    if (state == Qt::Checked) {
+        // 开始循环发送，并立即发送一次
+        timeoutMultiTextTimer();
+        multiTextTimer->start(ui->spinBox_interval_ms->value());
+    } else {
+        // 停止循环发送
+        multiTextTimer->stop();
+        currentSendIndex = 0;
+        if (lastSendId != 0) {
+            findChild<QPushButton*>(QString("btn_send_%1").arg(lastSendId))->setStyleSheet("");
+            lastSendId = 0;
+        }
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::timeoutMultiTextTimer
+ * 定时器超时触发，用于循环发送多文本区域项
+ */
+void SerialPortAssistantWidget::timeoutMultiTextTimer()
+{
+    // 没有可发送项 -> 停止定时器
+    if (sendQueue.isEmpty()) {
+        multiTextTimer->stop();
+        ui->checkBox_cyclicSend->setCheckState(Qt::Unchecked);
+        currentSendIndex = 0;
+        return;
+    }
+
+    // 获取当前要发送的 itemId
+    int itemId = sendQueue[currentSendIndex];
+
+    // 触发对应 itemId 发送按钮
+    if (auto *btn = findChild<QPushButton*>(QString("btn_send_%1").arg(itemId))) {
+        // 使上一次发送按钮恢复正常
+        if (lastSendId != 0) {
+            findChild<QPushButton*>(QString("btn_send_%1").arg(lastSendId))->setStyleSheet("");
+        }
+        // 高亮当前发送按钮
+        btn->setStyleSheet(QString("border: 2px solid %1; border-radius: 6px; background-color: %2;")
+                               .arg(AppColors::highlightCyclic.name(), AppColors::bacCyclic.name()));
+        // 触发对应项发送按钮
+        emit btn->clicked();
+        lastSendId = itemId;
+    }
+
+    // 指向下一个发送项（循环）
+    currentSendIndex = (currentSendIndex + 1) % sendQueue.size();
+
+    // 动态更新时间间隔（如果用户修改了时间间隔）
+    int currentInterval = ui->spinBox_interval_ms->value();
+    if (multiTextTimer->interval() != currentInterval) {
+        multiTextTimer->setInterval(currentInterval);
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::updateSendQueue
+ * 更新发送队列
+ */
+void SerialPortAssistantWidget::updateSendQueue()
+{
+    int currentId = 0;
+    if (!sendQueue.isEmpty()) {
+        currentId = sendQueue[currentSendIndex];
+    }
+    sendQueue.clear();
+
+    // 将最新有效项更新到队列
+    for (auto cb : std::as_const(multiTextCheckBoxes)) {
+        if (cb->isChecked()) {
+            int itemId = cb->property("itemId").toInt();
+            auto *le = findChild<QLineEdit*>(QString("lineEdit_%1").arg(itemId));
+            if (le && le->text() != "") {
+                sendQueue.push_back(itemId);
+            }
+        }
+    }
+
+    // 如果当前正在循环发送，但有效项没了 -> 停止
+    if (sendQueue.isEmpty() && multiTextTimer -> isActive()) {
+        emit ui->checkBox_cyclicSend->setCheckState(Qt::Unchecked);
+        return;
+    }
+
+    // 确定下一个发送项在队列中的索引
+    int temp = sendQueue.indexOf(currentId);
+    if (temp != -1) { 	// 找到了则更新新的索引位置
+        currentSendIndex = temp;
+    } else if (currentSendIndex >= sendQueue.size()) {
+        // 没找到且索引越界，则从头开始
+        currentSendIndex = 0;
+    }
 }

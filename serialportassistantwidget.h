@@ -26,17 +26,21 @@ public:
 
 private:
     Ui::SerialPortAssistantWidget *ui;
-    QSerialPort* serialPort; 	// 串口实例
+    QSerialPort *serialPort; 	// 串口实例
     QHash<QString, QSerialPort::Parity> parityMap; 	// 串口校验位选项映射
     QHash<QString, QSerialPort::StopBits> stopBitsMap; 	// 串口停止位选项映射
-    QTimer* serialPortCheckTimer; 	// 串口检测定时器
+    QTimer *serialPortCheckTimer; 	// 串口检测定时器
     QStringList previousPortList; 	// 上一次检测到的串口列表
     int transmittedBytesTotal; 	// 发送数据字节总数
     int receivedBytesTotal; 	// 接收数据字节总数
     QByteArray receiveBuffer; 	// 接收数据缓冲区
-    QTimer* transmissionTimer; 	// 发送定时器
-    QTimer* updateRealDateTimeTimer; 	// 实时时间更新定时器
+    QTimer *transmissionTimer; 	// 发送定时器
+    QTimer *updateRealDateTimeTimer; 	// 实时时间更新定时器
     QList<QCheckBox*> multiTextCheckBoxes; 	// 多文本发送区项复选框集合
+    QTimer *multiTextTimer; 	// 多文本循环发送定时器
+    QList<int> sendQueue; 	// 存储所有有效 itemId (勾选且文本不空)
+    int currentSendIndex = 0; 	// 当前轮发送序号
+    int lastSendId = 0; 	// 上一次发送项 ID
 
     void configMap(); 	// 串口配置映射
     void updateSerialPortList(); 	// 更新串口列表
@@ -58,15 +62,13 @@ private slots:
     void saveReceivedContent(); 	// 保存接收区内容
     void displayHEX(Qt::CheckState state); 	// hex 显示
     void transmitHex(Qt::CheckState state, QLineEdit *le); 	// HEX 发送模式
-    /**
-     * @brief 自动格式化 lineEdit_transmitString 输入内容（在 HEX 发送模式下）
-     *        1. 过滤非法字符（只保留 0-9 A-F a-f）
-     *        2. 每 2 个字符插入空格
-     */
     void sendLineEditChanged(const QString &text, bool hexMode); // 对输入框进行实时监控（仅在 hexSend 模式下启用）
     void hiddenHistory(bool checked); 	// 隐藏历史记录
     void hiddenPanel(bool checked); 	// 隐藏面板
     void changeMultiTextCheckBoxAll(Qt::CheckState state); 	// 全选复选框
     void updateCheckBoxAllState(); 	// 根据子复选框状态更新父复选框三态
+    void transmitCyclically(Qt::CheckState state); 	// 多文本区循环发送
+    void timeoutMultiTextTimer(); 	// 多文本定时器超时处理
+    void updateSendQueue(); 	// 更新发送队列
 };
 #endif // SERIALPORTASSISTANTWIDGET_H

@@ -14,6 +14,8 @@ public:
     static const QColor Warning;
     static const QColor FontUI;
     static const QColor BorderUI;
+    static const QColor highlightCyclic;
+    static const QColor bacCyclic;
 };
 
 #endif // APPCOLORS_H
