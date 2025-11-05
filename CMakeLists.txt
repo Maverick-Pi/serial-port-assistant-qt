@@ -34,6 +34,8 @@ find_package(Qt6 REQUIRED COMPONENTS Core)
         ${PROJECT_SOURCES}
         resources.qrc
         appcolors.h appcolors.cpp
+        README.md
+        LICENSE
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET serial-port-assistant APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
