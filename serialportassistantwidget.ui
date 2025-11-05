@@ -2141,7 +2141,7 @@
    <item row="1" column="0">
     <widget class="QFrame" name="statusBar">
      <property name="styleSheet">
-      <string notr="true">background-color: rgb(31, 32, 34);</string>
+      <string notr="true"/>
      </property>
      <property name="frameShape">
       <enum>QFrame::Shape::StyledPanel</enum>

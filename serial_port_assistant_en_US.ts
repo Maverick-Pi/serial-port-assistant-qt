@@ -1,47 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="zh_CN">
+<TS version="2.1" language="en_US">
 <context>
     <name>SerialPortAssistantWidget</name>
     <message>
         <location filename="serialportassistantwidget.ui" line="14"/>
         <source>Serial Port Assistant</source>
-        <translation>串口助手</translation>
+        <translation>Serial Port Assistant</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="45"/>
         <source>Receive Area</source>
-        <translation>接收区</translation>
+        <translation>Receive Area</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="83"/>
         <source>Waiting for received information......</source>
-        <translation>空空如也，等待接收信息......</translation>
+        <translation>Waiting for received information......</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="102"/>
         <source>History Record</source>
-        <translation>历史记录</translation>
+        <translation>History Record</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="122"/>
         <source>No history records, empty!</source>
-        <translation>暂无历史记录，空空如也！</translation>
+        <translation>No history records, empty!</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="131"/>
         <source>Multi-Text</source>
-        <translation>多文本</translation>
+        <translation>Multi-Text</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="169"/>
         <source>Send</source>
-        <translation>发送</translation>
+        <translation>Send</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="178"/>
         <source>String</source>
-        <translation>字符串</translation>
+        <translation>String</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="187"/>
@@ -51,152 +51,152 @@
     <message>
         <location filename="serialportassistantwidget.ui" line="404"/>
         <source>Please enter text data</source>
-        <translation>请输入文本数据</translation>
+        <translation>Please enter text data</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="644"/>
         <source>Cyclic Send</source>
-        <translation>循环发送</translation>
+        <translation>Cyclic Send</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="677"/>
         <source>ms</source>
-        <translation>毫秒</translation>
+        <translation>ms</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="688"/>
         <source>Save</source>
-        <translation>保存</translation>
+        <translation>Save</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="697"/>
         <source>Load</source>
-        <translation>载入</translation>
+        <translation>Load</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="706"/>
         <source>Reset</source>
-        <translation>重置</translation>
+        <translation>Reset</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="756"/>
         <source>Serial Port</source>
-        <translation>串口</translation>
+        <translation>Serial Port</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="806"/>
         <source>Baud Rate</source>
-        <translation>波特率</translation>
+        <translation>Baud Rate</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="856"/>
         <source>Data Bits</source>
-        <translation>数据位</translation>
+        <translation>Data Bits</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="906"/>
         <source>Parity</source>
-        <translation>校验位</translation>
+        <translation>Parity</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="956"/>
         <source>Stop Bits</source>
-        <translation>停止位</translation>
+        <translation>Stop Bits</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1006"/>
         <source>Flow Control</source>
-        <translation>流控</translation>
+        <translation>Flow Control</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1074"/>
         <source>Hide History</source>
-        <translation>隐藏历史</translation>
+        <translation>Hide History</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1088"/>
         <source>Open Serial Port</source>
-        <translation>打开串口</translation>
+        <translation>Open Serial Port</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1105"/>
         <source>HEX Display</source>
-        <translation>HEX 显示</translation>
+        <translation>HEX Display</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1118"/>
         <source>Clear Receive</source>
-        <translation>清空接收</translation>
+        <translation>Clear Receive</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1131"/>
         <source>Hide Panel</source>
-        <translation>隐藏面板</translation>
+        <translation>Hide Panel</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1144"/>
         <source>Receive End Char</source>
-        <translation>接收结束符</translation>
+        <translation>Receive End Char</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1157"/>
         <source>Save Receive</source>
-        <translation>保存接收</translation>
+        <translation>Save Receive</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1170"/>
         <source>Clear History</source>
-        <translation>清空历史</translation>
+        <translation>Clear History</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1203"/>
         <source>Send</source>
-        <translation>发送</translation>
+        <translation>Send</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1221"/>
         <source>Please enter text data</source>
-        <translation>请输入文本数据</translation>
+        <translation>Please enter text data</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1239"/>
         <source>Timed Send</source>
-        <translation>定时发送</translation>
+        <translation>Timed Send</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1265"/>
         <source>ms/time</source>
-        <translation>毫秒/次</translation>
+        <translation>ms/time</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1272"/>
         <source>Send New Line</source>
-        <translation>发送新行</translation>
+        <translation>Send New Line</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1279"/>
         <source>HEX Send</source>
-        <translation>HEX发送</translation>
+        <translation>HEX Send</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1286"/>
         <source>Send End Char 0x03</source>
-        <translation>发送结束符 0x03</translation>
+        <translation>Send End Char 0x03</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1327"/>
         <source>Status</source>
-        <translation>状态</translation>
+        <translation>Status</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1345"/>
         <source>Received: 0 bytes</source>
-        <translation>已接收: 0 字节</translation>
+        <translation>Received: 0 bytes</translation>
     </message>
     <message>
         <location filename="serialportassistantwidget.ui" line="1363"/>
         <source>Sent: 0 bytes</source>
-        <translation>已发送: 0 字节</translation>
+        <translation>Sent: 0 bytes</translation>
     </message>
 </context>
 </TS>

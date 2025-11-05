@@ -5,6 +5,7 @@
 #include <QDateTime>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QScrollBar>
 #include <QSerialPortInfo>
 #include <QTextBlock>
 #include <QTimer>
@@ -316,6 +317,9 @@ void SerialPortAssistantWidget::displayFrame(const QByteArray &frameData)
                                 .arg(AppColors::ReceivedTime.name(), timestamp, displayData);
 
     ui->textEditReceive->append(formattedText);
+    // 优化显示
+    QScrollBar *scrollbar = ui->textEditReceive->verticalScrollBar();
+    scrollbar->setValue(scrollbar->maximum());
 
     receivedBytesTotal += frameData.size();
     ui->label_statusBar_received->setText(tr("已接收: %1 字节").arg(receivedBytesTotal));
@@ -350,6 +354,7 @@ void SerialPortAssistantWidget::switchSerialPort()
     if (serialPort->isOpen()) {
         serialPort->close();
         ui->checkBox_timedSend->setCheckState(Qt::Unchecked); 	// 关闭定时发送
+        ui->checkBox_cyclicSend->setCheckState(Qt::Unchecked); 	// 关闭循环发送
         ui->btn_switch->setText(tr("打开串口"));
         enabledSerialPortConfig(true);
         return;
@@ -521,6 +526,9 @@ void SerialPortAssistantWidget::transmitData(const QLineEdit* lineEdit, bool hex
     QString formattedText = QString("<span style=\"color:%1;\">%2 </span>%3")
                                 .arg(AppColors::RecordTime.name(), timestamp, displayData);
     ui->textEditRecord->append(formattedText);
+    // 优化显示，滚动条始终在最下
+    QScrollBar *scrollBar = ui->textEditRecord->verticalScrollBar();
+    scrollBar->setValue(scrollBar->maximum());
 
     transmittedBytesTotal += transmitBytes;
     ui->label_statusBar_sendStatus->setStyleSheet(
