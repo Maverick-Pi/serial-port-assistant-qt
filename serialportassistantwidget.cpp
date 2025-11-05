@@ -91,6 +91,13 @@ SerialPortAssistantWidget::SerialPortAssistantWidget(QWidget *parent)
     multiTextTimer->setTimerType(Qt::PreciseTimer);
     connect(multiTextTimer, &QTimer::timeout, this, &SerialPortAssistantWidget::timeoutMultiTextTimer);
 
+    // 多文本区域重置按钮信号与槽的绑定
+    connect(ui->btn_multiText_reset, &QPushButton::clicked, this, &SerialPortAssistantWidget::resetMultiText);
+    // 多文本区域保存按钮信号与槽的绑定
+    connect(ui->btn_multiText_save, &QPushButton::clicked, this, &SerialPortAssistantWidget::saveMultiText);
+    // 多文本区域载入按钮信号与槽的绑定
+    connect(ui->btn_multiText_load, &QPushButton::clicked, this, &SerialPortAssistantWidget::loadMultiText);
+
     // 创建发送定时器
     transmissionTimer = new QTimer(this);
     transmissionTimer->setTimerType(Qt::PreciseTimer);
@@ -107,7 +114,8 @@ SerialPortAssistantWidget::SerialPortAssistantWidget(QWidget *parent)
             this, &SerialPortAssistantWidget::timedTrasmission);
     connect(ui->btn_clearReceive, &QPushButton::clicked,
             this, &SerialPortAssistantWidget::clearReceivedTextEdit);
-    connect(ui->btn_clearRecord, &QPushButton::clicked, this, &SerialPortAssistantWidget::clearRecordedTextEdit);
+    connect(ui->btn_clearRecord, &QPushButton::clicked, this,
+            &SerialPortAssistantWidget::clearRecordedTextEdit);
     connect(ui->btn_saveReceive, &QPushButton::clicked, this, &SerialPortAssistantWidget::saveReceivedContent);
     connect(ui->checkBox_HEX_display, &QCheckBox::checkStateChanged,
             this, &SerialPortAssistantWidget::displayHEX);
@@ -568,7 +576,8 @@ void SerialPortAssistantWidget::timedTrasmission(Qt::CheckState state)
         ui->btn_transmit->setEnabled(false); 	// 发送按钮禁止使用
         // 开启定时器
         transmissionTimer->start(ui->lineEdit_ms_times->text().toInt());
-        transmitData(ui->lineEdit_transmitString, ui->checkBox_HEXSend->isChecked()); 	// 开启定时器后立刻执行一次发送
+        // 开启定时器后立刻执行一次发送
+        transmitData(ui->lineEdit_transmitString, ui->checkBox_HEXSend->isChecked());
     } else if (state == Qt::Unchecked) {
         ui->lineEdit_ms_times->setEnabled(true); 	// 定时框可以修改
         ui->lineEdit_transmitString->setEnabled(true); 	// 发送信息输入框可以修改
@@ -606,7 +615,8 @@ void SerialPortAssistantWidget::clearRecordedTextEdit()
  */
 void SerialPortAssistantWidget::saveReceivedContent()
 {
-    QString fileName = QFileDialog::getSaveFileName(this, tr("保存接收数据"), "./", tr("文本 (*.txt *.md)"));
+    QString fileName = QFileDialog::getSaveFileName(
+        this, tr("保存接收数据"), "./received.txt", tr("文本 (*.txt *.md)"));
 
     if (!fileName.isNull() && !fileName.isEmpty()) {
         QFile file(fileName);
@@ -911,5 +921,119 @@ void SerialPortAssistantWidget::updateSendQueue()
     } else if (currentSendIndex >= sendQueue.size()) {
         // 没找到且索引越界，则从头开始
         currentSendIndex = 0;
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::resetMultiText
+ * 多文本发送区重置按钮触发，重置该区域
+ */
+void SerialPortAssistantWidget::resetMultiText()
+{
+    QMessageBox msgBox(this);
+    msgBox.setIcon(QMessageBox::Question);
+    msgBox.setWindowTitle(tr("提示"));
+    msgBox.setText(tr("重置操作不可逆，是否确认重置？"));
+    auto *yBtn = msgBox.addButton(tr("是"), QMessageBox::YesRole);
+    msgBox.addButton(tr("否"), QMessageBox::NoRole);
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == yBtn) {
+        // 使项复选框未选状态
+        emit ui->checkBox_all->setCheckState(Qt::Unchecked);
+        for (int i = 1; i <= 9; ++i) {
+            // 遍历输入框并清空
+            findChild<QLineEdit*>(QString("lineEdit_%1").arg(i))->clear();
+            // 遍历十六进制复选框并使其未选状态
+            findChild<QCheckBox*>(QString("checkBox_hex_%1").arg(i))->setCheckState(Qt::Unchecked);
+        }
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::saveMultiText
+ * 将多文本区域指令集文本内容保存到本地文件
+ */
+void SerialPortAssistantWidget::saveMultiText()
+{
+    if (sendQueue.isEmpty()) return;
+
+    QString fileName = QFileDialog::getSaveFileName(
+        this, tr("保存指令集文件"), "./instructions.txt", tr("文本 (*.txt)"));
+
+    if (!fileName.isEmpty() && !fileName.isNull()) {
+        QFile file(fileName);
+
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            qFatal() << "文件打开失败";
+            return;
+        }
+
+        QTextStream out(&file);
+
+        for (int i = 0; i < sendQueue.size(); ++i) {
+            int id = sendQueue[i];
+            auto *le = findChild<QLineEdit*>(QString("lineEdit_%1").arg(id));
+            auto *cbHex = findChild<QCheckBox*>(QString("checkBox_hex_%1").arg(id));
+            if (le && cbHex) {
+                out << id << "," << le->text() << "," << cbHex->isChecked() << "\r\n";
+            }
+        }
+
+        file.close();
+
+        QMessageBox msgBox(this);
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setWindowTitle(tr("通知"));
+        msgBox.setText(tr("指令集保存成功"));
+        msgBox.addButton(tr("确认"), QMessageBox::AcceptRole);
+        msgBox.exec();
+    }
+}
+
+/**
+ * @brief SerialPortAssistantWidget::loadMultiText
+ * 从本地文件中载入指令集文本到多文本区域
+ */
+void SerialPortAssistantWidget::loadMultiText()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("打开指令集文件"), "./", tr("文本 (*.txt)"));
+
+    if (!fileName.isNull() && !fileName.isEmpty()) {
+        QFile file(fileName);
+
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            qFatal() << "文件打开失败";
+            return;
+        }
+
+        resetMultiText(); 	// 读取文件前先将多文本区域重置
+        QTextStream in(&file);
+
+        // 正则表达式
+        QRegularExpression regex(R"(^(\d+),(.*),([01])$)");
+
+        while (!in.atEnd()) {
+            QString line = in.readLine();
+            QRegularExpressionMatch match = regex.match(line);
+
+            if (match.hasMatch()) {
+                int id = match.captured(1).toInt(); 	// 项ID
+                QString text = match.captured(2); 	// 文本内容
+                bool hexChecked = match.captured(3) == "0" ? false : true;
+
+                // 根据 id 获取对应项
+                auto *cb = findChild<QCheckBox*>(QString("checkBox_%1").arg(id));
+                auto *le = findChild<QLineEdit*>(QString("lineEdit_%1").arg(id));
+                auto *cbHex = findChild<QCheckBox*>(QString("checkBox_hex_%1").arg(id));
+
+                // 如果对象存在，则将从文件中读取到的内容写入到对应项
+                if (cb && le && cbHex) {
+                    cb->setCheckState(Qt::Checked);
+                    le->setText(text);
+                    cbHex->setChecked(hexChecked);
+                }
+            }
+        }
     }
 }

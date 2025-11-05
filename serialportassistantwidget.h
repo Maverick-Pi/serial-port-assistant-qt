@@ -70,5 +70,8 @@ private slots:
     void transmitCyclically(Qt::CheckState state); 	// 多文本区循环发送
     void timeoutMultiTextTimer(); 	// 多文本定时器超时处理
     void updateSendQueue(); 	// 更新发送队列
+    void resetMultiText(); 	// 重置多文本发送区
+    void saveMultiText(); 	// 多文本区域保存指令集文本
+    void loadMultiText(); 	// 多文本区域载入指令集文本
 };
 #endif // SERIALPORTASSISTANTWIDGET_H
