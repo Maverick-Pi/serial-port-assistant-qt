@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
-        <file>icons/USART.png</file>
+        <file>icons/installer.ico</file>
+        <file>icons/USART.ico</file>
     </qresource>
 </RCC>

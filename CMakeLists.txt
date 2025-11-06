@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(serial-port-assistant VERSION 0.1 LANGUAGES CXX)
+project(serial-port-assistant VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -36,6 +36,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core)
         appcolors.h appcolors.cpp
         README.md
         LICENSE
+        res/serial-port-assistant.rc
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET serial-port-assistant APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
