@@ -31,7 +31,7 @@
    <string>串口助手</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
+   <iconset>
     <normaloff>:/icons/USART.png</normaloff>:/icons/USART.png</iconset>
   </property>
   <layout class="QGridLayout" name="gridLayout_8">
@@ -2166,7 +2166,7 @@
        <number>0</number>
       </property>
       <item row="0" column="0">
-       <layout class="QHBoxLayout" name="horizontalLayout_statusBar" stretch="2,3,3,2">
+       <layout class="QHBoxLayout" name="horizontalLayout_statusBar" stretch="3,2,2,2,3">
         <property name="spacing">
          <number>0</number>
         </property>
@@ -2198,6 +2198,25 @@
           </property>
           <property name="alignment">
            <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_statusBar_memory">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>25</height>
+           </size>
+          </property>
+          <property name="layoutDirection">
+           <enum>Qt::LayoutDirection::LeftToRight</enum>
+          </property>
+          <property name="text">
+           <string>内存: </string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -2265,8 +2284,6 @@
    </item>
   </layout>
  </widget>
- <resources>
-  <include location="resources.qrc"/>
- </resources>
+ <resources/>
  <connections/>
 </ui>

@@ -34,6 +34,12 @@ private:
     int transmittedBytesTotal; 	// 发送数据字节总数
     int receivedBytesTotal; 	// 接收数据字节总数
     QByteArray receiveBuffer; 	// 接收数据缓冲区
+    QList<QPair<QString, QByteArray>> receivedDataHistory; // 保存接收数据的历史记录（时间戳, 数据）
+    QList<QPair<QString, QByteArray>> sentDataHistory;    // 保存发送数据的历史记录（时间戳, 数据）
+    // 内存管理相关
+    static const int MAX_HISTORY_ITEMS = 1000;           // 最大历史记录条数
+    static const int CLEANUP_THRESHOLD = 100;            // 清理阈值（超过最大条数时清理的数量）
+    QTimer *memoryCleanupTimer;                          // 内存清理定时器
     QTimer *transmissionTimer; 	// 发送定时器
     QTimer *updateRealDateTimeTimer; 	// 实时时间更新定时器
     QList<QCheckBox*> multiTextCheckBoxes; 	// 多文本发送区项复选框集合
@@ -46,6 +52,8 @@ private:
     void updateSerialPortList(); 	// 更新串口列表
     void enabledSerialPortConfig(bool en); 	// 串口配置选项使能控制
     void popupSerialPortDisconnect(); 	// 串口打开时，串口被拔出发出的提示
+    void cleanupMemory(); 	// 内存清理
+    void updateMemoryUsageStatus(); 	// 更新状态栏显示内存使用情况
     // 接收区、历史记录区文本与 HEX 显示相互转换
     void convertTextEditHex(QTextEdit* textEdit, const QString& timestampPattern, bool toHex);
     void displayFrame(const QByteArray &frameData); // 显示接收数据

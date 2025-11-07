@@ -46,6 +46,11 @@ SerialPortAssistantWidget::SerialPortAssistantWidget(QWidget *parent)
     ui->label_statusBar_dateTime->setText(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
     updateRealDateTimeTimer->start(1000);
 
+    // 创建并启动内存清理定时器，每30秒检查一次内存使用
+    memoryCleanupTimer = new QTimer(this);
+    connect(memoryCleanupTimer, &QTimer::timeout, this, &SerialPortAssistantWidget::cleanupMemory);
+    memoryCleanupTimer->start(30000); // 30秒检查一次
+
     // 多文本发送区
     for (int i = 1; i <= 9; ++i) {
         // 每项复选框集合
@@ -150,6 +155,10 @@ SerialPortAssistantWidget::~SerialPortAssistantWidget()
         multiTextTimer->stop();
         delete multiTextTimer;
     }
+    if (memoryCleanupTimer) {
+        memoryCleanupTimer->stop();
+        delete memoryCleanupTimer;
+    }
     delete ui;
     delete serialPort;
 }
@@ -226,6 +235,82 @@ void SerialPortAssistantWidget::popupSerialPortDisconnect()
 }
 
 /**
+ * @brief SerialPortAssistantWidget::cleanupMemory
+ * 内存清理函数，定期清理过期的历史数据
+ */
+void SerialPortAssistantWidget::cleanupMemory()
+{
+    // 清理接收历史数据
+    if (receivedDataHistory.size() > MAX_HISTORY_ITEMS) {
+        int itemsToRemove = receivedDataHistory.size() - (MAX_HISTORY_ITEMS - CLEANUP_THRESHOLD);
+        if (itemsToRemove > 0) {
+            receivedDataHistory.erase(receivedDataHistory.begin(), receivedDataHistory.begin() + itemsToRemove);
+            qDebug() << "Cleaned up" << itemsToRemove << "receive history items";
+
+            // 如果当前是HEX显示模式，需要重新渲染接收区
+            if (ui->checkBox_HEX_display->isChecked()) {
+                displayHEX(Qt::Checked);
+            } else {
+                displayHEX(Qt::Unchecked);
+            }
+        }
+    }
+
+    // 清理发送历史数据
+    if (sentDataHistory.size() > MAX_HISTORY_ITEMS) {
+        int itemsToRemove = sentDataHistory.size() - (MAX_HISTORY_ITEMS - CLEANUP_THRESHOLD);
+        if (itemsToRemove > 0) {
+            sentDataHistory.erase(sentDataHistory.begin(), sentDataHistory.begin() + itemsToRemove);
+            qDebug() << "Cleaned up" << itemsToRemove << "send history items";
+
+            // 如果当前是HEX显示模式，需要重新渲染发送记录区
+            if (ui->checkBox_HEX_display->isChecked()) {
+                displayHEX(Qt::Checked);
+            } else {
+                displayHEX(Qt::Unchecked);
+            }
+        }
+    }
+
+    // 更新状态栏显示当前内存使用情况
+    updateMemoryUsageStatus();
+}
+
+/**
+ * @brief SerialPortAssistantWidget::updateMemoryUsageStatus
+ * 更新状态栏显示内存使用情况
+ */
+void SerialPortAssistantWidget::updateMemoryUsageStatus()
+{
+    // 计算总数据大小
+    qint64 totalSize = 0;
+
+    for (const auto &item : receivedDataHistory) {
+        totalSize += item.second.size() + item.first.toUtf8().size();
+    }
+
+    for (const auto &item : sentDataHistory) {
+        totalSize += item.second.size() + item.first.toUtf8().size();
+    }
+
+    // 转换为合适的单位显示
+    QString sizeText;
+    if (totalSize < 1024) {
+        sizeText = QString("%1 B").arg(totalSize);
+    } else if (totalSize < 1024 * 1024) {
+        sizeText = QString("%1 KB").arg(totalSize / 1024.0, 0, 'f', 1);
+    } else {
+        sizeText = QString("%1 MB").arg(totalSize / (1024.0 * 1024.0), 0, 'f', 1);
+    }
+
+    // 更新状态栏
+    ui->label_statusBar_memory->setText(tr("内存: %1 (%2/%3)")
+        .arg(sizeText)
+        .arg(receivedDataHistory.size() + sentDataHistory.size())
+        .arg(MAX_HISTORY_ITEMS * 2));
+}
+
+/**
  * @brief SerialPortAssistantWidget::convertTextEditHex
  * 根据指定的时间戳格式，将 QTextEdit 中的每条记录在 HEX 和原始文本显示之间互相转换。
  *
@@ -265,30 +350,56 @@ void SerialPortAssistantWidget::convertTextEditHex(QTextEdit* textEdit,
                 // 转为 HEX：先 trim 左右空白，再转为 bytes，然后 toHex（中间以空格分隔）
                 QByteArray dataBytes = data.trimmed().toUtf8();
                 convertedData = QString::fromUtf8(dataBytes.toHex(' ').toUpper());
+
+                // 对于HEX模式，直接显示转换后的数据
+                QString color = (textEdit == ui->textEditReceive) ? AppColors::ReceivedTime.name()
+                                                                  : AppColors::RecordTime.name();
+                QString escapedTimestamp = timestamp.toHtmlEscaped();
+                QString escapedData = convertedData.toHtmlEscaped();
+
+                newHtml += QString("<div><span style=\"color:%1;\">%2</span>%3</div>")
+                               .arg(color, escapedTimestamp, escapedData);
             } else {
                 // 从 HEX 转回：移除所有非 0-9A-Fa-f，然后 fromHex
                 QString hexString = data;
                 static const QRegularExpression nonHexPattern("[^0-9A-Fa-f]");
                 hexString.remove(nonHexPattern);
                 QByteArray dataBytes = QByteArray::fromHex(hexString.toLatin1());
-                convertedData = QString::fromUtf8(dataBytes);
-                // 如果原来是可见文本行，保持一条记录的末尾没有额外空格或换行（HTML 用 div 分隔）
+                QString rawText = QString::fromUtf8(dataBytes);
+
+                // 在文本模式下，需要将数据分割成多行显示
+                QStringList lines = rawText.split(QRegularExpression("(\r\n|\n|\r)"));
+
+                QString color = (textEdit == ui->textEditReceive) ? AppColors::ReceivedTime.name()
+                                                                  : AppColors::RecordTime.name();
+                QString escapedTimestamp = timestamp.toHtmlEscaped();
+
+                for (int i = 0; i < lines.size(); ++i) {
+                    QString line = lines[i];
+                    if (line.isEmpty() && i > 0 && i == lines.size() - 1) continue;
+
+                    QString displayData = line.toHtmlEscaped();
+
+                    // 如果是第一行，显示时间戳
+                    if (i == 0) {
+                        newHtml += QString("<div><span style=\"color:%1;\">%2</span>%3</div>")
+                                       .arg(color, escapedTimestamp, displayData);
+                    } else {
+                        // 后续行只显示内容
+                        newHtml += QString("<div>%1</div>").arg(displayData);
+                    }
+                }
             }
-
-            // 根据不同区域使用不同颜色
-            QString color = (textEdit == ui->textEditReceive) ? AppColors::ReceivedTime.name()
-                                                              : AppColors::RecordTime.name();
-
-            // 用 div 保证每条记录是独立的块，避免合并到同一行
-            // 注意对 timestamp 做 HTML 转义以防止特殊字符破坏 HTML
-            QString escapedTimestamp = timestamp.toHtmlEscaped();
-            QString escapedData = convertedData.toHtmlEscaped();
-
-            newHtml += QString("<div><span style=\"color:%1;\">%2</span>%3</div>")
-                           .arg(color, escapedTimestamp, escapedData);
         } else {
-            // 如果没匹配到时间戳就直接转义并作为独立段落插入
-            newHtml += QString("<div>%1</div>").arg(blockText.toHtmlEscaped());
+            // 如果没匹配到时间戳，可能是之前转换产生的无时间戳行
+            if (!toHex) {
+                // 在文本模式下，直接显示（这些行通常是没有时间戳的续行）
+                newHtml += QString("<div>%1</div>").arg(blockText.toHtmlEscaped());
+            } else {
+                // 在HEX模式下，不应该有无时间戳的行，忽略或按普通文本处理
+                QString escapedText = blockText.toHtmlEscaped();
+                newHtml += QString("<div>%1</div>").arg(escapedText);
+            }
         }
     }
 
@@ -298,31 +409,50 @@ void SerialPortAssistantWidget::convertTextEditHex(QTextEdit* textEdit,
 /**
  * @brief SerialPortAssistantWidget::displayFrame
  * 显示接收数据
- * @param frameData 解析后的帧数据
  */
 void SerialPortAssistantWidget::displayFrame(const QByteArray &frameData)
 {
     if (frameData.isEmpty()) return;
 
     QString timestamp = QDateTime::currentDateTime().toString("[hh:mm:ss.zzz]");
-    QString displayData;
 
+    // 保存原始数据到历史记录
+    receivedDataHistory.append(qMakePair(timestamp, frameData));
+
+    // 根据当前显示模式显示数据
     if (ui->checkBox_HEX_display->isChecked()) {
-        displayData = QString::fromUtf8(frameData.toHex(' ').toUpper());
+        // HEX 模式 - 时间戳单独一行
+        QString hexData = QString::fromUtf8(frameData.toHex(' ').toUpper());
+        QString formattedText = QString("<div><span style=\"color:%1;\">%2</span></div><div>%3</div>")
+                                    .arg(AppColors::ReceivedTime.name(), timestamp, hexData);
+        ui->textEditReceive->append(formattedText);
     } else {
-        displayData = QString::fromUtf8(frameData);
+        // 文本模式 - 时间戳单独一行，然后显示数据内容
+        QString rawText = QString::fromUtf8(frameData);
+        QStringList lines = rawText.split(QRegularExpression("(\r\n|\n|\r)"));
+
+        // 先显示时间戳
+        QString timestampHtml = QString("<div><span style=\"color:%1;\">%2</span></div>")
+                                    .arg(AppColors::ReceivedTime.name(), timestamp);
+        ui->textEditReceive->append(timestampHtml);
+
+        // 然后显示数据内容
+        for (int i = 0; i < lines.size(); ++i) {
+            QString line = lines[i];
+            if (line.isEmpty() && i > 0 && i == lines.size() - 1) continue;
+
+            QString displayData = QString("<div>%1</div>").arg(line.toHtmlEscaped());
+            ui->textEditReceive->append(displayData);
+        }
     }
 
-    QString formattedText = QString("<span style=\"color:%1;\">%2 </span>%3")
-                                .arg(AppColors::ReceivedTime.name(), timestamp, displayData);
-
-    ui->textEditReceive->append(formattedText);
     // 优化显示
     QScrollBar *scrollbar = ui->textEditReceive->verticalScrollBar();
     scrollbar->setValue(scrollbar->maximum());
 
     receivedBytesTotal += frameData.size();
     ui->label_statusBar_received->setText(tr("已接收: %1 字节").arg(receivedBytesTotal));
+    updateMemoryUsageStatus();
 }
 
 /**
@@ -458,8 +588,9 @@ void SerialPortAssistantWidget::transmitData(const QLineEdit* lineEdit, bool hex
         switchSerialPort();
     }
 
+    // 获取发送输入框内容
     QString text = lineEdit->text();
-    if (text.isEmpty()) {
+    if (text.isEmpty()) { 	// 如果输入框为空，则给出提示
         ui->label_statusBar_sendStatus->setStyleSheet(
             QString("color: %1; font-weight: bold;").arg(AppColors::Warning.name()));
         ui->label_statusBar_sendStatus->setText(tr("没有可发送的数据！"));
@@ -468,7 +599,7 @@ void SerialPortAssistantWidget::transmitData(const QLineEdit* lineEdit, bool hex
 
     QByteArray sendData;
 
-    if (hexMode) {
+    if (hexMode) { 	// 十六进制模式发送
         // 去除空格等非HEX字符，仅保留 0-9 A-F a-f
         QString hexString = text;
         static const QRegularExpression hexRegex("[^0-9A-Fa-f]");
@@ -488,7 +619,7 @@ void SerialPortAssistantWidget::transmitData(const QLineEdit* lineEdit, bool hex
         sendData = text.toUtf8();
     }
 
-    // 如果 “发送新行” 复选框勾选, 则需要在发送文本末尾添加换行符
+    // 如果 "发送新行" 复选框勾选, 则需要在发送文本末尾添加换行符
     if (ui->checkBox_sendNewLine->isChecked()) {
         sendData.append("\r\n");
     }
@@ -509,23 +640,40 @@ void SerialPortAssistantWidget::transmitData(const QLineEdit* lineEdit, bool hex
     // 获取时间戳
     QString timestamp = QDateTime::currentDateTime().toString("[hh:mm:ss.zzz]");
 
-    // 决定 record 区显示的格式（实时对应 HEX 显示复选框）
-    bool hexDisplay = ui->checkBox_HEX_display->isChecked();
-    QString displayData;
+    // 保存原始发送数据到历史记录
+    sentDataHistory.append(qMakePair(timestamp, sendData));
 
-    if (ui->checkBox_sendEnd->isChecked()) transmitBytes--;
+    // 根据当前显示模式显示发送记录
+    if (ui->checkBox_HEX_display->isChecked()) {
+        // HEX 模式 - 时间戳单独一行
+        QByteArray displayData = sendData;
+        if (ui->checkBox_sendEnd->isChecked()) {
+            displayData = sendData.left(sendData.size() - 1); // 去掉结束符
+        }
 
-    if (hexDisplay) {
-        QByteArray hex = sendData.left(transmitBytes).toHex(' ').toUpper();
-        displayData = QString::fromUtf8(hex);
+        QString hexData = QString::fromUtf8(displayData.toHex(' ').toUpper());
+        QString formattedText = QString("<div><span style=\"color:%1;\">%2</span></div><div>%3</div>")
+                                    .arg(AppColors::RecordTime.name(), timestamp, hexData);
+        ui->textEditRecord->append(formattedText);
     } else {
-        // 即使以HEX发送，也允许显示为原始（可能为不可见字符）
-        displayData = QString::fromUtf8(sendData.left(transmitBytes));
+        // 文本模式 - 时间戳单独一行，然后显示数据内容
+        QByteArray displayData = sendData;
+        if (ui->checkBox_sendEnd->isChecked()) {
+            displayData = sendData.left(sendData.size() - 1); // 去掉结束符
+        }
+
+        QString rawText = QString::fromUtf8(displayData);
+
+        // 先显示时间戳
+        QString timestampHtml = QString("<div><span style=\"color:%1;\">%2</span></div>")
+                                    .arg(AppColors::RecordTime.name(), timestamp);
+        ui->textEditRecord->append(timestampHtml);
+
+        // 后显示发送的文本内容
+        QString displayText = rawText.toHtmlEscaped();
+        ui->textEditRecord->append(QString("<div>%1</div>").arg(displayText));
     }
 
-    QString formattedText = QString("<span style=\"color:%1;\">%2 </span>%3")
-                                .arg(AppColors::RecordTime.name(), timestamp, displayData);
-    ui->textEditRecord->append(formattedText);
     // 优化显示，滚动条始终在最下
     QScrollBar *scrollBar = ui->textEditRecord->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
@@ -535,32 +683,35 @@ void SerialPortAssistantWidget::transmitData(const QLineEdit* lineEdit, bool hex
         QString("color: %1; font-weight: bold;").arg(AppColors::Success.name()));
     ui->label_statusBar_sendStatus->setText(tr("发送成功！"));
     ui->label_statusBar_sent->setText(tr("已发送: %1 字节").arg(transmittedBytesTotal));
+
+    updateMemoryUsageStatus();
 }
 
 /**
  * @brief SerialPortAssistantWidget::readyReadSerialPort
- * 接收数据，根据 “HEX显示” 复选框状态实时决定显示为 HEX 还是原文
+ * 接收数据，根据 "HEX显示" 复选框状态实时决定显示为 HEX 还是原文
  */
 void SerialPortAssistantWidget::readyReadSerialPort()
 {
     // 先读取所有数据放入缓冲
-    receiveBuffer.append(serialPort->readAll());
+    QByteArray newData = serialPort->readAll();
+    receiveBuffer.append(newData);
 
-    // 如果用户勾选“带结束符解析”
+    // 如果用户勾选"带结束符解析"
     if (ui->checkBox_receiveEnd->isChecked()) {
         int endIndex = receiveBuffer.indexOf(char(0x03));  // 查找结束符
         if (endIndex == -1) {
             return; // 没接收完一帧，等下次进来
         }
 
-        // 取出一帧数据，去掉结束符或保留，由你决定：
-        QByteArray frameData = receiveBuffer.left(endIndex); // 不包含 0x03
-        receiveBuffer.remove(0, endIndex + 1);               // 清除含结束符
+        // 取出一帧数据，去掉结束符
+        QByteArray frameData = receiveBuffer.left(endIndex);
+        receiveBuffer.remove(0, endIndex + 1);
 
         displayFrame(frameData);
     }
     else {
-        // 不使用结束符模式 → 所有数据直接显示，不截断，不丢弃
+        // 不使用结束符模式 → 所有数据直接显示
         if (!receiveBuffer.isEmpty()) {
             QByteArray frameData = receiveBuffer;
             receiveBuffer.clear();
@@ -601,9 +752,11 @@ void SerialPortAssistantWidget::timedTrasmission(Qt::CheckState state)
  */
 void SerialPortAssistantWidget::clearReceivedTextEdit()
 {
-    ui->textEditReceive->clear(); 	// 清空接收区
+    ui->textEditReceive->clear();
+    receivedDataHistory.clear(); // 同时清空历史记录
     receivedBytesTotal = 0;
     ui->label_statusBar_received->setText(tr("已接收: %1 字节").arg(receivedBytesTotal));
+    updateMemoryUsageStatus(); 	// 更新内存使用状态
 }
 
 /**
@@ -613,8 +766,10 @@ void SerialPortAssistantWidget::clearReceivedTextEdit()
 void SerialPortAssistantWidget::clearRecordedTextEdit()
 {
     ui->textEditRecord->clear();
+    sentDataHistory.clear(); // 同时清空发送历史记录
     transmittedBytesTotal = 0;
     ui->label_statusBar_sent->setText(tr("已发送: %1 字节").arg(transmittedBytesTotal));
+    updateMemoryUsageStatus(); 	// 更新内存使用状态
 }
 
 /**
@@ -638,6 +793,7 @@ void SerialPortAssistantWidget::saveReceivedContent()
     }
 }
 
+
 /**
  * @brief SerialPortAssistantWidget::displayHEX
  * 在接收区和发送区以十六进制显示
@@ -645,24 +801,87 @@ void SerialPortAssistantWidget::saveReceivedContent()
  */
 void SerialPortAssistantWidget::displayHEX(Qt::CheckState state)
 {
-    if (state == Qt::Checked) {
-        // 接收区模式：匹配时间戳格式 [hh:mm:ss.zzz]
-        QString receivePattern = R"(\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s)";
-        // 记录区模式：匹配时间戳格式 [hh:mm:ss.zzz]
-        QString recordPattern = R"(\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s)";
+    // 处理接收区
+    ui->textEditReceive->clear();
+    for (const auto &item : std::as_const(receivedDataHistory)) {
+        QString timestamp = item.first;
+        QByteArray frameData = item.second;
 
-        convertTextEditHex(ui->textEditReceive, receivePattern, true);
-        convertTextEditHex(ui->textEditRecord, recordPattern, true);
+        if (state == Qt::Checked) {
+            // HEX 模式 - 时间戳单独一行
+            QString hexData = QString::fromUtf8(frameData.toHex(' ').toUpper());
+            QString formattedText = QString("<div><span style=\"color:%1;\">%2</span></div><div>%3</div>")
+                                        .arg(AppColors::ReceivedTime.name(), timestamp, hexData);
+            ui->textEditReceive->append(formattedText);
+        } else {
+            // 文本模式 - 时间戳单独一行，然后显示数据内容
+            QString rawText = QString::fromUtf8(frameData);
+            QStringList lines = rawText.split(QRegularExpression("(\r\n|\n|\r)"));
 
-    } else if (state == Qt::Unchecked) {
-        // 接收区模式：匹配时间戳格式 [hh:mm:ss.zzz]
-        QString receivePattern = R"(\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s)";
-        // 记录区模式：匹配时间戳格式 [hh:mm:ss.zzz]
-        QString recordPattern = R"(\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s)";
+            // 先显示时间戳
+            QString timestampHtml = QString("<div><span style=\"color:%1;\">%2</span></div>")
+                                        .arg(AppColors::ReceivedTime.name(), timestamp);
+            ui->textEditReceive->append(timestampHtml);
 
-        convertTextEditHex(ui->textEditReceive, receivePattern, false);
-        convertTextEditHex(ui->textEditRecord, recordPattern, false);
+            // 然后显示数据内容
+            for (int i = 0; i < lines.size(); ++i) {
+                QString line = lines[i];
+                if (line.isEmpty() && i > 0 && i == lines.size() - 1) continue;
+
+                QString displayData = line.toHtmlEscaped();
+                ui->textEditReceive->append(displayData);
+            }
+        }
     }
+
+    // 处理发送记录区
+    ui->textEditRecord->clear();
+    for (const auto &item : std::as_const(sentDataHistory)) {
+        QString timestamp = item.first;
+        QByteArray sentData = item.second;
+
+        if (state == Qt::Checked) {
+            // HEX 模式 - 时间戳单独一行
+            QByteArray displayData = sentData;
+            if (ui->checkBox_sendEnd->isChecked()) {
+                displayData = sentData.left(sentData.size() - 1); // 去掉结束符
+            }
+
+            QString hexData = QString::fromUtf8(displayData.toHex(' ').toUpper());
+            QString formattedText = QString("<div><span style=\"color:%1;\">%2</span></div><div>%3</div>")
+                                        .arg(AppColors::RecordTime.name(), timestamp, hexData);
+            ui->textEditRecord->append(formattedText);
+        } else {
+            // 文本模式 - 时间戳单独一行，然后显示数据内容
+            QByteArray displayData = sentData;
+            if (ui->checkBox_sendEnd->isChecked()) {
+                displayData = sentData.left(sentData.size() - 1); // 去掉结束符
+            }
+
+            QString rawText = QString::fromUtf8(displayData);
+            QStringList lines = rawText.split(QRegularExpression("(\r\n|\n|\r)"));
+
+            // 先显示时间戳
+            QString timestampHtml = QString("<div><span style=\"color:%1;\">%2</span></div>")
+                                        .arg(AppColors::RecordTime.name(), timestamp);
+            ui->textEditRecord->append(timestampHtml);
+
+            // 然后显示数据内容
+            for (int i = 0; i < lines.size(); ++i) {
+                QString line = lines[i];
+                if (line.isEmpty() && i > 0 && i == lines.size() - 1) continue;
+
+                QString displayText = line.toHtmlEscaped();
+                ui->textEditRecord->append(displayText);
+            }
+        }
+    }
+
+    // 优化显示
+    QScrollBar *scrollbar = ui->textEditReceive->verticalScrollBar();
+    scrollbar->setValue(scrollbar->maximum());
+    QScrollBar *scrollbar2 = ui->textEditRecord->verticalScrollBar();
+    scrollbar2->setValue(scrollbar2->maximum());
 }
 
 /**
@@ -731,8 +950,7 @@ void SerialPortAssistantWidget::sendLineEditChanged(const QString &text, bool he
         ui->label_statusBar_sendStatus->setText(tr("HEX格式错误：必须为偶数位"));
     } else {
         le->setStyleSheet("");
-        ui->label_statusBar_sendStatus->setStyleSheet(
-            QString("color: %1;").arg(AppColors::FontUI.name()));
+        ui->label_statusBar_sendStatus->setStyleSheet("");
         ui->label_statusBar_sendStatus->setText(tr("状态"));
     }
 }
